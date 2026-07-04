@@ -19,20 +19,49 @@
 #include <ArduinoJson.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#include "config.h"
 
-// ── Display ──────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════
+//  CONFIGURATION
+// ══════════════════════════════════════════════════════════════════════
+
+// WiFi
+const char* WIFI_SSID     = "Pi";
+const char* WIFI_PASSWORD = "12345678";
+
+// Firebase Web API Key & Project ID (from firebase_options.dart)
+const char* FIREBASE_API_KEY   = "AIzaSyBnBnlF8rFsTumxq8v6uaru5hxSv5K0sBw";
+const char* FIREBASE_PROJECT_ID = "buddy-a4902";
+
+// Auth credentials (Firebase user that owns the tasks)
+const char* AUTH_EMAIL    = "user1@gmail.com";
+const char* AUTH_PASSWORD = "12345678";
+
+// OLED Display (SSD1306 128x64, I2C)
+#define OLED_WIDTH  128
+#define OLED_HEIGHT 64
+#define OLED_ADDRESS 0x3C
+#define OLED_SDA 21
+#define OLED_SCL 22
+
+// Poll interval (seconds between Firestore refreshes)
+#define POLL_INTERVAL_SEC 30
+
+// NTP
+const char* NTP_SERVER   = "pool.ntp.org";
+const int   GMT_OFFSET   = 0;
+const int   DAYLIGHT_OFFSET = 0;
+
+// ══════════════════════════════════════════════════════════════════════
+//  GLOBALS
+// ══════════════════════════════════════════════════════════════════════
+
 Adafruit_SSD1306 display(OLED_WIDTH, OLED_HEIGHT, &Wire, -1);
-
-// ── WiFi Client (TLS) ────────────────────────────────────────────────
 WiFiClientSecure client;
 
-// ── Auth ──────────────────────────────────────────────────────────────
 String idToken = "";
 String firebaseUid = "";
 unsigned long tokenExpiry = 0;
 
-// ── Dashboard Data ───────────────────────────────────────────────────
 struct TaskItem {
   String text;
 };
@@ -52,7 +81,7 @@ struct DashboardData {
 DashboardData dashboard;
 unsigned long lastFetch = 0;
 unsigned long lastSectionSwitch = 0;
-int currentSection = 0;     // 0=today, 1=daily, 2=constant
+int currentSection = 0;
 int currentScrollOffset = 0;
 unsigned long lastScroll = 0;
 
@@ -64,6 +93,7 @@ void parseFirestoreDocument(const String& json, DashboardData& out);
 void displaySection(const String& title, const TaskItem items[], int count);
 void showSplash();
 void showError(const String& msg);
+void renderCurrentSection();
 
 // ══════════════════════════════════════════════════════════════════════
 //  SETUP
@@ -72,7 +102,6 @@ void setup() {
   Serial.begin(115200);
   delay(100);
 
-  // Init OLED
   Wire.begin(OLED_SDA, OLED_SCL);
   if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDRESS)) {
     Serial.println(F("SSD1306 allocation failed"));
@@ -80,20 +109,15 @@ void setup() {
   }
   showSplash();
 
-  // Init WiFi client (skip cert verification for simplicity;
-  // for production use a fingerprint or cert bundle)
   client.setInsecure();
 
-  // Connect WiFi
   if (!connectWiFi()) {
     showError("WiFi failed");
     return;
   }
 
-  // Init NTP
   configTime(GMT_OFFSET * 3600, DAYLIGHT_OFFSET * 3600, NTP_SERVER);
 
-  // Initial data fetch
   if (!fetchIdToken()) {
     showError("Auth failed");
     return;
@@ -110,7 +134,6 @@ void setup() {
 void loop() {
   unsigned long now = millis();
 
-  // ── Periodic refresh ───────────────────────────────────────────────
   if (now - lastFetch > POLL_INTERVAL_SEC * 1000UL) {
     lastFetch = now;
     if (WiFi.status() != WL_CONNECTED) {
@@ -124,7 +147,6 @@ void loop() {
     }
   }
 
-  // ── Section rotation ───────────────────────────────────────────────
   int interval = (dashboard.rotationInterval > 0) ? dashboard.rotationInterval : 15;
   if (dashboard.displayMode == "rotate") {
     if (now - lastSectionSwitch > interval * 1000UL) {
@@ -140,7 +162,6 @@ void loop() {
     }
   }
 
-  // ── Render ─────────────────────────────────────────────────────────
   renderCurrentSection();
   delay(100);
 }
@@ -151,12 +172,10 @@ void loop() {
 void renderCurrentSection() {
   display.clearDisplay();
 
-  // Determine which section to show
   String title;
   const TaskItem* items = nullptr;
   int count = 0;
 
-  // Build ordered list of non-empty sections
   struct SectionInfo { String title; const TaskItem* items; int count; };
   SectionInfo sections[3];
   int secCount = 0;
@@ -200,14 +219,12 @@ void renderCurrentSection() {
 }
 
 void displaySection(const String& title, const TaskItem items[], int count) {
-  // ── Header bar ───────────────────────────────────────────────────
   display.fillRect(0, 0, OLED_WIDTH, 10, SSD1306_WHITE);
   display.setTextSize(1);
   display.setTextColor(SSD1306_BLACK);
   display.setCursor(2, 1);
   display.print(title);
 
-  // Show section indicator on the right
   if (dashboard.displayMode == "rotate") {
     display.setCursor(OLED_WIDTH - 30, 1);
     display.print(F("("));
@@ -218,7 +235,6 @@ void displaySection(const String& title, const TaskItem items[], int count) {
     display.print(F(")"));
   }
 
-  // ── Connection / time row ────────────────────────────────────────
   display.setTextColor(SSD1306_WHITE);
   display.setCursor(0, 12);
   struct tm timeinfo;
@@ -230,12 +246,10 @@ void displaySection(const String& title, const TaskItem items[], int count) {
   display.print(F("  "));
   display.print(dashboard.generatedDate);
 
-  // ── Task list ────────────────────────────────────────────────────
   int yStart = 24;
   int lineHeight = 10;
   int maxLines = (OLED_HEIGHT - yStart) / lineHeight;
 
-  // Scroll if content exceeds display
   if (count > maxLines) {
     unsigned long now = millis();
     if (now - lastScroll > 3000) {
@@ -256,10 +270,9 @@ void displaySection(const String& title, const TaskItem items[], int count) {
     int y = yStart + (i - startIdx) * lineHeight;
     display.setCursor(0, y);
     display.print(F(" "));
-    display.print(char(149)); // bullet
+    display.print(char(149));
     display.print(F(" "));
 
-    // Truncate long text
     String text = items[i].text;
     if (text.length() > 16) {
       text = text.substring(0, 15) + F("...");
@@ -267,7 +280,6 @@ void displaySection(const String& title, const TaskItem items[], int count) {
     display.print(text);
   }
 
-  // ── Scroll indicator ─────────────────────────────────────────────
   if (count > maxLines) {
     int dotY = yStart + maxLines * lineHeight;
     int totalDots = min(count, 6);
@@ -303,7 +315,6 @@ bool fetchIdToken() {
   client.println();
   client.print(body);
 
-  // Read response
   String response;
   bool headersDone = false;
   unsigned long timeout = millis() + 5000;
@@ -319,7 +330,6 @@ bool fetchIdToken() {
   }
   client.stop();
 
-  // Parse
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, response);
   if (err) {
@@ -337,7 +347,7 @@ bool fetchIdToken() {
   idToken = doc["idToken"].as<String>();
   firebaseUid = doc["localId"].as<String>();
   int expiresIn = doc["expiresIn"].as<int>();
-  tokenExpiry = millis() + (expiresIn - 60) * 1000UL; // renew 1min early
+  tokenExpiry = millis() + (expiresIn - 60) * 1000UL;
   Serial.println(F("Auth OK"));
   return true;
 }
@@ -369,7 +379,6 @@ bool fetchDashboard() {
   client.println(F("Accept: application/json"));
   client.println();
 
-  // Read response
   String response;
   bool headersDone = false;
   unsigned long timeout = millis() + 8000;
@@ -390,7 +399,6 @@ bool fetchDashboard() {
     return false;
   }
 
-  // Check for HTTP error
   if (response.startsWith("{\"error\"")) {
     Serial.print(F("Firestore error: "));
     Serial.println(response);
@@ -414,10 +422,8 @@ void parseFirestoreDocument(const String& json, DashboardData& out) {
     return;
   }
 
-  // Fields are nested under "fields"
   JsonObject fields = doc["fields"];
   if (fields.isNull()) {
-    // Try "fields" at root level (Firestore Document format)
     JsonObject root = doc.as<JsonObject>();
     if (root["fields"].is<JsonObject>()) {
       fields = root["fields"].as<JsonObject>();
@@ -429,11 +435,9 @@ void parseFirestoreDocument(const String& json, DashboardData& out) {
     return;
   }
 
-  // Reset
   out = DashboardData();
   out.rotationInterval = 15;
 
-  // ── Scalar fields ──────────────────────────────────────────────────
   auto readString = [&](const char* name) -> String {
     if (!fields[name].is<JsonObject>()) return "";
     return fields[name]["stringValue"].as<String>();
@@ -450,7 +454,6 @@ void parseFirestoreDocument(const String& json, DashboardData& out) {
   out.rotationInterval   = readInt("rotationInterval");
   if (out.rotationInterval < 5) out.rotationInterval = 15;
 
-  // ── Array fields ──────────────────────────────────────────────────
   auto readItems = [&](const char* name, TaskItem items[], int& count) {
     count = 0;
     JsonObject arrField = fields[name];
