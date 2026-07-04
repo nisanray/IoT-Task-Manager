@@ -94,6 +94,7 @@ void displaySection(const String& title, const TaskItem items[], int count);
 void showSplash();
 void showError(const String& msg);
 void renderCurrentSection();
+String getMarqueeText(const String& original, int maxLen, unsigned long now);
 
 // ══════════════════════════════════════════════════════════════════════
 //  SETUP
@@ -209,6 +210,29 @@ void renderCurrentSection() {
   display.display();
 }
 
+String getMarqueeText(const String& original, int maxLen, unsigned long now) {
+  if (original.length() <= maxLen) {
+    return original;
+  }
+  
+  String scrollText = original + F("   ");
+  int scrollTextLen = scrollText.length();
+  int pauseSteps = 6;
+  int totalSteps = scrollTextLen + pauseSteps;
+  
+  int step = (now / 300) % totalSteps;
+  int offset = 0;
+  if (step > pauseSteps) {
+    offset = step - pauseSteps;
+  }
+  
+  String part = scrollText.substring(offset, offset + maxLen);
+  if (part.length() < maxLen) {
+    part += scrollText.substring(0, maxLen - part.length());
+  }
+  return part;
+}
+
 void displaySection(const String& title, const TaskItem items[], int count) {
   // 1. Draw Header
   display.setTextSize(1);
@@ -266,12 +290,10 @@ void displaySection(const String& title, const TaskItem items[], int count) {
       }
 
       int maxLen = (count > maxLines) ? 18 : 19;
-      if (disp.length() > maxLen) {
-        disp = disp.substring(0, maxLen - 2) + F("..");
-      }
+      String dispMarquee = getMarqueeText(disp, maxLen, millis());
 
       display.setCursor(12, y);
-      display.print(disp);
+      display.print(dispMarquee);
     }
 
     // Draw Scrollbar
