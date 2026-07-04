@@ -45,18 +45,21 @@ class GlassCard extends StatelessWidget {
             sigmaX: blurIntensity,
             sigmaY: blurIntensity,
           ),
-          child: Container(
-            padding: padding ?? const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(borderRadius),
-              color: effectiveTint.withValues(alpha: isDark ? 0.5 : 0.6),
-              border: Border.all(
-                color: (isDark ? Colors.white : Colors.white)
-                    .withValues(alpha: borderOpacity),
+          child: Material(
+            type: MaterialType.transparency,
+            child: Container(
+              padding: padding ?? const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(borderRadius),
+                color: effectiveTint.withValues(alpha: isDark ? 0.5 : 0.6),
+                border: Border.all(
+                  color: (isDark ? Colors.white : Colors.white)
+                      .withValues(alpha: borderOpacity),
+                ),
+                gradient: gradient,
               ),
-              gradient: gradient,
+              child: child,
             ),
-            child: child,
           ),
         ),
       ),

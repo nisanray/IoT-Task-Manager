@@ -19,7 +19,7 @@ class SettingsScreen extends ConsumerWidget {
         slivers: [
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 12, 20, 8),
               child: Text('Settings',
                   style: theme.textTheme.headlineMedium
                       ?.copyWith(fontWeight: FontWeight.w700)),
@@ -195,7 +195,9 @@ class _SettingsCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-          child: Column(
+          child: Material(
+            type: MaterialType.transparency,
+            child: Column(
             children: items.asMap().entries.map((entry) {
               return Column(
                 children: [
@@ -212,6 +214,7 @@ class _SettingsCard extends StatelessWidget {
             }).toList(),
           ),
         ),
+      ),
       ),
     );
   }

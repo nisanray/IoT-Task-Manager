@@ -360,9 +360,12 @@ class _SectionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(children: children),
+          child: Material(
+            type: MaterialType.transparency,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(children: children),
+            ),
           ),
         ),
       ),

@@ -7,6 +7,7 @@ class TaskCard extends StatefulWidget {
   final Task task;
   final VoidCallback onToggleComplete;
   final VoidCallback onTap;
+  final VoidCallback? onToggleEsp32;
   final int index;
 
   const TaskCard({
@@ -14,6 +15,7 @@ class TaskCard extends StatefulWidget {
     required this.task,
     required this.onToggleComplete,
     required this.onTap,
+    this.onToggleEsp32,
     this.index = 0,
   });
 
@@ -121,7 +123,7 @@ class _TaskCardState extends State<TaskCard>
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                   child: Material(
-                    color: Colors.transparent,
+                    type: MaterialType.transparency,
                     child: IntrinsicHeight(
                       child: Row(
                         children: [
@@ -194,20 +196,10 @@ class _TaskCardState extends State<TaskCard>
                                     ),
                                   ),
                                   const SizedBox(width: 4),
-                                  if (widget.task.showOnEsp32)
-                                    Container(
-                                      width: 28,
-                                      height: 28,
-                                      decoration: BoxDecoration(
-                                        color: AppColors.tertiary.withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: const Icon(
-                                        Icons.developer_board_rounded,
-                                        size: 16,
-                                        color: AppColors.tertiary,
-                                      ),
-                                    ),
+                                  _Esp32Checkbox(
+                                    enabled: widget.task.showOnEsp32,
+                                    onToggle: widget.onToggleEsp32,
+                                  ),
                                   const SizedBox(width: 4),
                                   Container(
                                     width: 28,
@@ -402,6 +394,95 @@ class _CheckPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _CheckPainter old) =>
       old.progress != progress;
+}
+
+class _Esp32Checkbox extends StatefulWidget {
+  final bool enabled;
+  final VoidCallback? onToggle;
+
+  const _Esp32Checkbox({required this.enabled, this.onToggle});
+
+  @override
+  State<_Esp32Checkbox> createState() => _Esp32CheckboxState();
+}
+
+class _Esp32CheckboxState extends State<_Esp32Checkbox>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _scaleAnim = Tween<double>(begin: 0.85, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.elasticOut),
+    );
+    if (widget.enabled) _controller.value = 1.0;
+  }
+
+  @override
+  void didUpdateWidget(_Esp32Checkbox old) {
+    super.didUpdateWidget(old);
+    if (widget.enabled != old.enabled) {
+      if (widget.enabled) {
+        _controller.forward();
+      } else {
+        _controller.reverse();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: widget.onToggle,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          return Transform.scale(
+            scale: _scaleAnim.value,
+            child: Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: widget.enabled
+                    ? AppColors.tertiary.withValues(alpha: 0.15)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: widget.enabled
+                      ? AppColors.tertiary
+                      : Theme.of(context).colorScheme.outline.withValues(alpha: 0.4),
+                  width: 1.5,
+                ),
+              ),
+              child: Center(
+                child: Icon(
+                  widget.enabled
+                      ? Icons.developer_board_rounded
+                      : Icons.developer_board_outlined,
+                  size: 16,
+                  color: widget.enabled
+                      ? AppColors.tertiary
+                      : Theme.of(context).colorScheme.outline,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 }
 
 class _SmallBadge extends StatelessWidget {

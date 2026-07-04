@@ -85,7 +85,9 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                   borderRadius: BorderRadius.circular(16),
                   child: BackdropFilter(
                     filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-                    child: ListTile(
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: ListTile(
                   leading: Container(
                     width: 44,
                     height: 44,
@@ -122,7 +124,8 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                   ),
                 ),
               ),
-              );
+              ),
+            );
             },
           );
         },

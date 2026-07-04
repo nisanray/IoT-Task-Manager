@@ -22,7 +22,7 @@ class DashboardSettingsScreen extends ConsumerWidget {
         slivers: [
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 12, 20, 8),
               child: Text('Display Settings',
                   style: theme.textTheme.headlineMedium
                       ?.copyWith(fontWeight: FontWeight.w700)),
@@ -192,25 +192,28 @@ class DashboardSettingsScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(20),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(icon, size: 20, color: AppColors.primary),
-                    const SizedBox(width: 8),
-                    Text(title,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w600)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                ...children,
-              ],
+          child: Material(
+            type: MaterialType.transparency,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(icon, size: 20, color: AppColors.primary),
+                      const SizedBox(width: 8),
+                      Text(title,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ...children,
+                ],
+              ),
             ),
           ),
         ),
@@ -268,10 +271,11 @@ class DashboardSettingsScreen extends ConsumerWidget {
     );
   }
 
-  void _updateSetting(WidgetRef ref, DashboardSettings settings) {
-    ref
+  Future<void> _updateSetting(WidgetRef ref, DashboardSettings settings) async {
+    await ref
         .read(dashboardSettingsActionsProvider.notifier)
         .updateSettings(settings);
+    ref.invalidate(dashboardSettingsProvider);
   }
 }
 

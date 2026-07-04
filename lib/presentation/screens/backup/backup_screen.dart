@@ -50,7 +50,9 @@ class BackupScreen extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(20),
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                  child: Column(
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: Column(
                 children: [
                   _BackupTile(
                     icon: Icons.file_upload_rounded,
@@ -76,7 +78,8 @@ class BackupScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            const Spacer(),
+          ),
+          const Spacer(),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(

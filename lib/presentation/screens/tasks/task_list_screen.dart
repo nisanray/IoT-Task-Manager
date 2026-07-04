@@ -37,7 +37,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
         slivers: [
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 12, 20, 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -144,6 +144,12 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
                                 .completeTask(task.id);
                           }
                         },
+                        onToggleEsp32: () {
+                          ref.read(taskActionsProvider.notifier).updateTask(
+                                task.copyWith(
+                                    showOnEsp32: !task.showOnEsp32),
+                              );
+                        },
                         onTap: () {
                           Navigator.of(context).push(
                             _buildTaskDetailRoute(task),
@@ -231,13 +237,16 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.of(context).push(
-            _buildTaskDetailRoute(null),
-          );
-        },
-        child: const Icon(Icons.add_rounded),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 96),
+        child: FloatingActionButton(
+          onPressed: () {
+            Navigator.of(context).push(
+              _buildTaskDetailRoute(null),
+            );
+          },
+          child: const Icon(Icons.add_rounded),
+        ),
       ),
     );
   }
@@ -287,27 +296,50 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
 
   void _showFilterSheet(BuildContext context, WidgetRef ref) {
     final filter = ref.read(taskFilterProvider);
-    showModalBottomSheet(
+    showGeneralDialog(
       context: context,
-      builder: (ctx) => _FilterSheet(
-        currentFilter: filter,
-        onApply: (newFilter) {
-          ref
-              .read(taskFilterProvider.notifier)
-              .setStatusFilter(newFilter.statusFilter);
-          ref
-              .read(taskFilterProvider.notifier)
-              .setTypeFilter(newFilter.typeFilter);
-          ref
-              .read(taskFilterProvider.notifier)
-              .setPriorityFilter(newFilter.priorityFilter);
-          Navigator.of(ctx).pop();
-        },
-        onClear: () {
-          ref.read(taskFilterProvider.notifier).clearAll();
-          Navigator.of(ctx).pop();
-        },
-      ),
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss',
+      transitionDuration: const Duration(milliseconds: 300),
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          )),
+          child: child,
+        );
+      },
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return Align(
+          alignment: Alignment.centerRight,
+          child: SizedBox(
+            width: MediaQuery.of(context).size.width * 0.8,
+            child: _FilterSheet(
+              currentFilter: filter,
+              onApply: (newFilter) {
+                ref
+                    .read(taskFilterProvider.notifier)
+                    .setStatusFilter(newFilter.statusFilter);
+                ref
+                    .read(taskFilterProvider.notifier)
+                    .setTypeFilter(newFilter.typeFilter);
+                ref
+                    .read(taskFilterProvider.notifier)
+                    .setPriorityFilter(newFilter.priorityFilter);
+                Navigator.of(context).pop();
+              },
+              onClear: () {
+                ref.read(taskFilterProvider.notifier).clearAll();
+                Navigator.of(context).pop();
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -504,9 +536,12 @@ class _FilterSheetState extends State<_FilterSheet> {
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Padding(
+          child: Material(
+            type: MaterialType.transparency,
+            child: Padding(
             padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-            child: Column(
+            child: SingleChildScrollView(
+              child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -594,6 +629,8 @@ class _FilterSheetState extends State<_FilterSheet> {
           ),
           ],
         ),
+        ),
+      ),
       ),
         ),
       ),

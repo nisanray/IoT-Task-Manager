@@ -18,7 +18,7 @@ class StatisticsScreen extends ConsumerWidget {
         slivers: [
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 12, 20, 8),
               child: Text('Statistics',
                   style: theme.textTheme.headlineMedium
                       ?.copyWith(fontWeight: FontWeight.w700)),
