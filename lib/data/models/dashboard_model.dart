@@ -3,22 +3,34 @@ import 'package:iot_task_manager/domain/entities/dashboard.dart';
 class DashboardItemModel {
   final String id;
   final String text;
+  final String description;
 
-  const DashboardItemModel({required this.id, required this.text});
+  const DashboardItemModel({
+    required this.id,
+    required this.text,
+    this.description = '',
+  });
 
-  Map<String, dynamic> toJson() => {'id': id, 'text': text};
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'text': text,
+        'description': description,
+      };
 
   factory DashboardItemModel.fromJson(Map<String, dynamic> json) {
     return DashboardItemModel(
       id: json['id'] as String? ?? '',
       text: json['text'] as String? ?? '',
+      description: json['description'] as String? ?? '',
     );
   }
 
-  DashboardItem toEntity() => DashboardItem(id: id, text: text);
+  DashboardItem toEntity() =>
+      DashboardItem(id: id, text: text, description: description);
 
   factory DashboardItemModel.fromEntity(DashboardItem item) =>
-      DashboardItemModel(id: item.id, text: item.text);
+      DashboardItemModel(
+          id: item.id, text: item.text, description: item.description);
 }
 
 class DashboardModel {

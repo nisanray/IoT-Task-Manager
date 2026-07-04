@@ -1,17 +1,16 @@
 /**********************************************************************
  * ESP32 IoT Task Manager Display
- * 
- * Fetches the dashboard document from Firestore and displays tasks
+ * * Fetches the dashboard document from Firestore and displays tasks
  * on an SSD1306 OLED (128x64) with automatic section rotation.
  *
  * Hardware:
- *   - ESP32 (any variant)
- *   - SSD1306 OLED 128x64 (I2C: SDA=GPIO21, SCL=GPIO22)
+ * - ESP32 (any variant)
+ * - SSD1306 OLED 128x64 (I2C: SDA=GPIO21, SCL=GPIO22)
  *
  * Required Arduino libraries (install via Library Manager):
- *   - ArduinoJson          by Benoit Blanchon
- *   - Adafruit GFX         by Adafruit
- *   - Adafruit SSD1306     by Adafruit
+ * - ArduinoJson        by Benoit Blanchon
+ * - Adafruit GFX       by Adafruit
+ * - Adafruit SSD1306   by Adafruit
  **********************************************************************/
 
 #include <WiFi.h>
@@ -25,8 +24,8 @@
 // ══════════════════════════════════════════════════════════════════════
 
 // WiFi
-const char* WIFI_SSID     = "Pi";
-const char* WIFI_PASSWORD = "12345678";
+const char* WIFI_SSID     = "Wokwi-GUEST";
+const char* WIFI_PASSWORD = "";
 
 // Firebase Web API Key & Project ID (from firebase_options.dart)
 const char* FIREBASE_API_KEY   = "AIzaSyBnBnlF8rFsTumxq8v6uaru5hxSv5K0sBw";
@@ -40,8 +39,8 @@ const char* AUTH_PASSWORD = "12345678";
 #define OLED_WIDTH  128
 #define OLED_HEIGHT 64
 #define OLED_ADDRESS 0x3C
-#define OLED_SDA 21
-#define OLED_SCL 22
+#define OLED_SDA 8
+#define OLED_SCL 9
 
 // Poll interval (seconds between Firestore refreshes)
 #define POLL_INTERVAL_SEC 30
@@ -64,6 +63,7 @@ unsigned long tokenExpiry = 0;
 
 struct TaskItem {
   String text;
+  String description;
 };
 
 struct DashboardData {
@@ -274,10 +274,15 @@ void displaySection(const String& title, const TaskItem items[], int count) {
     display.print(F(" "));
 
     String text = items[i].text;
-    if (text.length() > 16) {
-      text = text.substring(0, 15) + F("...");
+    String desc = items[i].description;
+    String disp = text;
+    if (!desc.isEmpty()) {
+      disp += " - " + desc;
     }
-    display.print(text);
+    if (disp.length() > 16) {
+      disp = disp.substring(0, 15) + F("...");
+    }
+    display.print(disp);
   }
 
   if (count > maxLines) {
@@ -296,7 +301,7 @@ void displaySection(const String& title, const TaskItem items[], int count) {
 //  FIREBASE AUTH (REST API)
 // ══════════════════════════════════════════════════════════════════════
 bool fetchIdToken() {
-  String url = String(F("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=")) + FIREBASE_API_KEY;
+  String path = String(F("/v1/accounts:signInWithPassword?key=")) + FIREBASE_API_KEY;
 
   String body = String(F("{\"email\":\"")) + AUTH_EMAIL
               + F("\",\"password\":\"") + AUTH_PASSWORD
@@ -307,7 +312,7 @@ bool fetchIdToken() {
     return false;
   }
 
-  client.println(String(F("POST ")) + url + F(" HTTP/1.1"));
+  client.println(String(F("POST ")) + path + F(" HTTP/1.0"));
   client.println(F("Host: identitytoolkit.googleapis.com"));
   client.println(F("Content-Type: application/json"));
   client.print(F("Content-Length: "));
@@ -315,19 +320,14 @@ bool fetchIdToken() {
   client.println();
   client.print(body);
 
-  String response;
-  bool headersDone = false;
-  unsigned long timeout = millis() + 5000;
-  while (millis() < timeout) {
-    while (client.available()) {
-      String line = client.readStringUntil('\n');
-      line.trim();
-      if (!headersDone && line.isEmpty()) { headersDone = true; continue; }
-      if (headersDone) response += line;
+  while (client.connected()) {
+    String line = client.readStringUntil('\n');
+    if (line == "\r") {
+      break; 
     }
-    if (headersDone && !response.isEmpty()) break;
-    delay(10);
   }
+
+  String response = client.readString(); 
   client.stop();
 
   JsonDocument doc;
@@ -361,37 +361,32 @@ bool fetchDashboard() {
     return false;
   }
 
-  String url = String(F("https://firestore.googleapis.com/v1/projects/"))
-             + FIREBASE_PROJECT_ID
-             + F("/databases/(default)/documents/users/")
-             + firebaseUid
-             + F("/dashboard/current");
+  String path = String(F("/v1/projects/"))
+              + FIREBASE_PROJECT_ID
+              + F("/databases/(default)/documents/users/")
+              + firebaseUid
+              + F("/dashboard/current");
 
   if (!client.connect("firestore.googleapis.com", 443)) {
     Serial.println(F("Firestore: connection failed"));
     return false;
   }
 
-  client.println(String(F("GET ")) + url + F(" HTTP/1.1"));
+  client.println(String(F("GET ")) + path + F(" HTTP/1.0"));
   client.println(F("Host: firestore.googleapis.com"));
   client.print(F("Authorization: Bearer "));
   client.println(idToken);
   client.println(F("Accept: application/json"));
   client.println();
 
-  String response;
-  bool headersDone = false;
-  unsigned long timeout = millis() + 8000;
-  while (millis() < timeout) {
-    while (client.available()) {
-      String line = client.readStringUntil('\n');
-      line.trim();
-      if (!headersDone && line.isEmpty()) { headersDone = true; continue; }
-      if (headersDone) response += line;
+  while (client.connected()) {
+    String line = client.readStringUntil('\n');
+    if (line == "\r") {
+      break; 
     }
-    if (headersDone && !response.isEmpty()) break;
-    delay(10);
   }
+
+  String response = client.readString();
   client.stop();
 
   if (response.isEmpty()) {
@@ -465,6 +460,11 @@ void parseFirestoreDocument(const String& json, DashboardData& out) {
       JsonObject mapField = v["mapValue"]["fields"];
       if (mapField.isNull()) continue;
       items[count].text = mapField["text"]["stringValue"].as<String>();
+      if (mapField["description"].is<JsonObject>()) {
+        items[count].description = mapField["description"]["stringValue"].as<String>();
+      } else {
+        items[count].description = "";
+      }
       count++;
     }
   };

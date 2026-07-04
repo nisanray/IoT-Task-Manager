@@ -216,12 +216,15 @@ class TaskRepositoryImpl implements TaskRepository {
           if (task.scheduledDate.year == now.year &&
               task.scheduledDate.month == now.month &&
               task.scheduledDate.day == now.day) {
-            todayItems.add(DashboardItem(id: task.id, text: task.title));
+            todayItems.add(DashboardItem(
+                id: task.id, text: task.title, description: task.description));
           }
         case TaskType.daily:
-          dailyItems.add(DashboardItem(id: task.id, text: task.title));
+          dailyItems.add(DashboardItem(
+              id: task.id, text: task.title, description: task.description));
         case TaskType.constant:
-          constantItems.add(DashboardItem(id: task.id, text: task.title));
+          constantItems.add(DashboardItem(
+              id: task.id, text: task.title, description: task.description));
         case TaskType.weekly:
           if (settings.showWeeklyTasks && task.repeatRule != null) {
             final dayNames = [
@@ -230,13 +233,15 @@ class TaskRepositoryImpl implements TaskRepository {
             ];
             final todayName = dayNames[now.weekday - 1];
             if (task.repeatRule!.weekdays.contains(todayName)) {
-              todayItems.add(DashboardItem(id: task.id, text: task.title));
+              todayItems.add(DashboardItem(
+                  id: task.id, text: task.title, description: task.description));
             }
           }
         case TaskType.monthly:
           if (settings.showMonthlyTasks &&
               task.scheduledDate.day == now.day) {
-            todayItems.add(DashboardItem(id: task.id, text: task.title));
+            todayItems.add(DashboardItem(
+                id: task.id, text: task.title, description: task.description));
           }
       }
     }
@@ -252,19 +257,22 @@ class TaskRepositoryImpl implements TaskRepository {
       today: settings.showTodayTasks
           ? todayItems
               .take(maxItems)
-              .map((e) => DashboardItemModel(id: e.id, text: e.text))
+              .map((e) => DashboardItemModel(
+                  id: e.id, text: e.text, description: e.description))
               .toList()
           : [],
       daily: settings.showDailyTasks
           ? dailyItems
               .take(maxItems)
-              .map((e) => DashboardItemModel(id: e.id, text: e.text))
+              .map((e) => DashboardItemModel(
+                  id: e.id, text: e.text, description: e.description))
               .toList()
           : [],
       constant: settings.showConstantTasks
           ? constantItems
               .take(maxItems)
-              .map((e) => DashboardItemModel(id: e.id, text: e.text))
+              .map((e) => DashboardItemModel(
+                  id: e.id, text: e.text, description: e.description))
               .toList()
           : [],
     );

@@ -3,11 +3,16 @@ import 'package:equatable/equatable.dart';
 class DashboardItem extends Equatable {
   final String id;
   final String text;
+  final String description;
 
-  const DashboardItem({required this.id, required this.text});
+  const DashboardItem({
+    required this.id,
+    required this.text,
+    this.description = '',
+  });
 
   @override
-  List<Object?> get props => [id, text];
+  List<Object?> get props => [id, text, description];
 }
 
 class Dashboard extends Equatable {
