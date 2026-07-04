@@ -172,7 +172,7 @@ void loop() {
 void renderCurrentSection() {
   display.clearDisplay();
 
-  String title;
+  String title = "Tasks";
   const TaskItem* items = nullptr;
   int count = 0;
 
@@ -197,21 +197,12 @@ void renderCurrentSection() {
       items  = sections[currentSection].items;
       count  = sections[currentSection].count;
     }
-  } else if (dashboard.displayMode == "today" && dashboard.todayCount > 0) {
+  } else if (dashboard.displayMode == "today") {
     title = "Today"; items = dashboard.today; count = dashboard.todayCount;
-  } else if (dashboard.displayMode == "daily" && dashboard.dailyCount > 0) {
+  } else if (dashboard.displayMode == "daily") {
     title = "Daily"; items = dashboard.daily; count = dashboard.dailyCount;
-  } else if (dashboard.displayMode == "constant" && dashboard.constantCount > 0) {
+  } else if (dashboard.displayMode == "constant") {
     title = "Constant"; items = dashboard.constant; count = dashboard.constantCount;
-  }
-
-  if (count == 0 || items == nullptr) {
-    display.setTextSize(1);
-    display.setTextColor(SSD1306_WHITE);
-    display.setCursor(0, 28);
-    display.println(F("  No tasks to show"));
-    display.display();
-    return;
   }
 
   displaySection(title, items, count);
@@ -219,14 +210,14 @@ void renderCurrentSection() {
 }
 
 void displaySection(const String& title, const TaskItem items[], int count) {
-  display.fillRect(0, 0, OLED_WIDTH, 10, SSD1306_WHITE);
+  // 1. Draw Header
   display.setTextSize(1);
-  display.setTextColor(SSD1306_BLACK);
-  display.setCursor(2, 1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(2, 2);
   display.print(title);
 
   if (dashboard.displayMode == "rotate") {
-    display.setCursor(OLED_WIDTH - 30, 1);
+    display.setCursor(96, 2);
     display.print(F("("));
     display.print(currentSection + 1);
     display.print(F("/"));
@@ -234,66 +225,75 @@ void displaySection(const String& title, const TaskItem items[], int count) {
     display.print(total);
     display.print(F(")"));
   }
+  display.drawFastHLine(0, 11, OLED_WIDTH, SSD1306_WHITE);
 
-  display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 12);
+  // 2. Draw Body
+  if (count == 0 || items == nullptr) {
+    display.setCursor(16, 28);
+    display.print(F("No tasks to show"));
+  } else {
+    int yStart = 14;
+    int lineHeight = 9;
+    int maxLines = 4; // We can show 4 tasks: y=14, 23, 32, 41
+
+    if (count > maxLines) {
+      unsigned long now = millis();
+      if (now - lastScroll > 3000) {
+        lastScroll = now;
+        currentScrollOffset++;
+        if (currentScrollOffset > count - maxLines) {
+          currentScrollOffset = 0;
+        }
+      }
+    } else {
+      currentScrollOffset = 0;
+    }
+
+    int startIdx = constrain(currentScrollOffset, 0, max(0, count - maxLines));
+    int endIdx = min(startIdx + maxLines, count);
+
+    for (int i = startIdx; i < endIdx; i++) {
+      int y = yStart + (i - startIdx) * lineHeight;
+      
+      // Draw Checkbox
+      display.drawRect(2, y + 1, 6, 6, SSD1306_WHITE);
+
+      String text = items[i].text;
+      String desc = items[i].description;
+      String disp = text;
+      if (!desc.isEmpty()) {
+        disp += " - " + desc;
+      }
+
+      int maxLen = (count > maxLines) ? 18 : 19;
+      if (disp.length() > maxLen) {
+        disp = disp.substring(0, maxLen - 2) + F("..");
+      }
+
+      display.setCursor(12, y);
+      display.print(disp);
+    }
+
+    // Draw Scrollbar
+    if (count > maxLines) {
+      int trackHeight = 35; // y from 14 to 49
+      int thumbHeight = max(6, trackHeight * maxLines / count);
+      int thumbY = 14 + (trackHeight - thumbHeight) * currentScrollOffset / (count - maxLines);
+      display.fillRect(125, thumbY, 3, thumbHeight, SSD1306_WHITE);
+    }
+  }
+
+  // 3. Draw Footer
+  display.drawFastHLine(0, 52, OLED_WIDTH, SSD1306_WHITE);
+  display.setCursor(2, 55);
+  display.print(dashboard.generatedDate);
+
   struct tm timeinfo;
   if (getLocalTime(&timeinfo)) {
     char buf[12];
     strftime(buf, sizeof(buf), "%H:%M", &timeinfo);
+    display.setCursor(96, 55);
     display.print(buf);
-  }
-  display.print(F("  "));
-  display.print(dashboard.generatedDate);
-
-  int yStart = 24;
-  int lineHeight = 10;
-  int maxLines = (OLED_HEIGHT - yStart) / lineHeight;
-
-  if (count > maxLines) {
-    unsigned long now = millis();
-    if (now - lastScroll > 3000) {
-      lastScroll = now;
-      currentScrollOffset++;
-      if (currentScrollOffset > count - maxLines) {
-        currentScrollOffset = 0;
-      }
-    }
-  } else {
-    currentScrollOffset = 0;
-  }
-
-  int startIdx = constrain(currentScrollOffset, 0, max(0, count - maxLines));
-  int endIdx = min(startIdx + maxLines, count);
-
-  for (int i = startIdx; i < endIdx; i++) {
-    int y = yStart + (i - startIdx) * lineHeight;
-    display.setCursor(0, y);
-    display.print(F(" "));
-    display.print(char(149));
-    display.print(F(" "));
-
-    String text = items[i].text;
-    String desc = items[i].description;
-    String disp = text;
-    if (!desc.isEmpty()) {
-      disp += " - " + desc;
-    }
-    if (disp.length() > 16) {
-      disp = disp.substring(0, 15) + F("...");
-    }
-    display.print(disp);
-  }
-
-  if (count > maxLines) {
-    int dotY = yStart + maxLines * lineHeight;
-    int totalDots = min(count, 6);
-    int activeDot = map(currentScrollOffset, 0, max(1, count - maxLines), 0, totalDots - 1);
-    int dotX = OLED_WIDTH / 2 - (totalDots * 3) / 2;
-    for (int d = 0; d < totalDots; d++) {
-      display.fillCircle(dotX + d * 6, dotY + 2, (d == activeDot) ? 2 : 1,
-                         d == activeDot ? SSD1306_WHITE : SSD1306_INVERSE);
-    }
   }
 }
 
@@ -512,25 +512,30 @@ bool connectWiFi() {
 // ══════════════════════════════════════════════════════════════════════
 void showSplash() {
   display.clearDisplay();
+  display.drawRect(0, 0, OLED_WIDTH, OLED_HEIGHT, SSD1306_WHITE);
+  display.drawRect(2, 2, OLED_WIDTH - 4, OLED_HEIGHT - 4, SSD1306_WHITE);
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
-  display.setCursor(10, 10);
-  display.println(F("Smart Task"));
-  display.setCursor(10, 20);
-  display.println(F("Manager"));
-  display.setCursor(10, 40);
-  display.setTextSize(1);
-  display.println(F("Connecting..."));
+  
+  display.setCursor(12, 18);
+  display.print(F("SMART TASK MANAGER"));
+  
+  display.setCursor(26, 38);
+  display.print(F("Connecting..."));
+  
   display.display();
 }
 
 void showError(const String& msg) {
   display.clearDisplay();
+  display.drawRect(0, 0, OLED_WIDTH, OLED_HEIGHT, SSD1306_WHITE);
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 0);
-  display.println(F("Error:"));
-  display.println(msg);
+  display.setCursor(10, 10);
+  display.print(F("SYSTEM ERROR"));
+  display.drawFastHLine(10, 22, OLED_WIDTH - 20, SSD1306_WHITE);
+  display.setCursor(10, 30);
+  display.print(msg);
   display.display();
   Serial.print(F("Error: "));
   Serial.println(msg);
