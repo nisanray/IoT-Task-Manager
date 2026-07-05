@@ -1,5 +1,5 @@
 /**********************************************************************
- * ESP32 IoT Task Manager Display
+ * ESP32 IoT Task Manager Display (Smooth Scrolling Edition)
  * * Fetches the dashboard document from Firestore and displays tasks
  * on an SSD1306 OLED (128x64) with automatic section rotation.
  *
@@ -8,7 +8,7 @@
  * - SSD1306 OLED 128x64 (I2C: SDA=GPIO21, SCL=GPIO22)
  *
  * Required Arduino libraries (install via Library Manager):
- * - ArduinoJson        by Benoit Blanchon
+ * - ArduinoJson      by Benoit Blanchon
  * - Adafruit GFX       by Adafruit
  * - Adafruit SSD1306   by Adafruit
  **********************************************************************/
@@ -24,8 +24,8 @@
 // ══════════════════════════════════════════════════════════════════════
 
 // WiFi
-const char* WIFI_SSID     = "Wokwi-GUEST";
-const char* WIFI_PASSWORD = "";
+const char* WIFI_SSID     = "Pi";
+const char* WIFI_PASSWORD = "12345678";
 
 // Firebase Web API Key & Project ID (from firebase_options.dart)
 const char* FIREBASE_API_KEY   = "AIzaSyBnBnlF8rFsTumxq8v6uaru5hxSv5K0sBw";
@@ -94,7 +94,6 @@ void displaySection(const String& title, const TaskItem items[], int count);
 void showSplash();
 void showError(const String& msg);
 void renderCurrentSection();
-String getMarqueeText(const String& original, int maxLen, unsigned long now);
 
 // ══════════════════════════════════════════════════════════════════════
 //  SETUP
@@ -108,6 +107,10 @@ void setup() {
     Serial.println(F("SSD1306 allocation failed"));
     for (;;) delay(1000);
   }
+  
+  // Disable text wrapping globally so long tasks stay on a single line
+  display.setTextWrap(false); 
+  
   showSplash();
 
   client.setInsecure();
@@ -164,7 +167,8 @@ void loop() {
   }
 
   renderCurrentSection();
-  delay(100);
+  // Lower delay slightly to ensure smooth rendering 
+  delay(10); 
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -210,31 +214,100 @@ void renderCurrentSection() {
   display.display();
 }
 
-String getMarqueeText(const String& original, int maxLen, unsigned long now) {
-  if (original.length() <= maxLen) {
-    return original;
-  }
-  
-  String scrollText = original + F("   ");
-  int scrollTextLen = scrollText.length();
-  int pauseSteps = 6;
-  int totalSteps = scrollTextLen + pauseSteps;
-  
-  int step = (now / 300) % totalSteps;
-  int offset = 0;
-  if (step > pauseSteps) {
-    offset = step - pauseSteps;
-  }
-  
-  String part = scrollText.substring(offset, offset + maxLen);
-  if (part.length() < maxLen) {
-    part += scrollText.substring(0, maxLen - part.length());
-  }
-  return part;
-}
-
 void displaySection(const String& title, const TaskItem items[], int count) {
-  // 1. Draw Header
+  // 1. Calculate boundaries and scroll offsets for vertical scrolling
+  int yStart = 14;
+  int lineHeight = 9;
+  int maxLines = 4; // We can show 4 tasks vertically: y=14, 23, 32, 41
+
+  if (count > maxLines) {
+    unsigned long now = millis();
+    // INCREASED from 3000ms to 6000ms to give long tasks time to scroll horizontally
+    if (now - lastScroll > 12000) { 
+      lastScroll = now;
+      currentScrollOffset++;
+      if (currentScrollOffset > count - maxLines) {
+        currentScrollOffset = 0;
+      }
+    }
+  } else {
+    currentScrollOffset = 0;
+  }
+
+  // Ensure text doesn't wrap to multiple lines for long tasks
+  display.setTextWrap(false); 
+
+  // 2. Draw Scrolling Text First
+  if (count == 0 || items == nullptr) {
+    display.setCursor(16, 28);
+    display.setTextColor(SSD1306_WHITE);
+    display.print(F("No tasks to show"));
+  } else {
+    int startIdx = constrain(currentScrollOffset, 0, max(0, count - maxLines));
+    int endIdx = min(startIdx + maxLines, count);
+
+    for (int i = startIdx; i < endIdx; i++) {
+      int y = yStart + (i - startIdx) * lineHeight;
+      
+      String text = items[i].text;
+      String desc = items[i].description;
+      String disp = text;
+      
+      if (!desc.isEmpty()) {
+        disp += " - " + desc;
+      }
+
+      // FIX: Replace newline and carriage return characters with a space. 
+      // This prevents the Adafruit library from jumping to the next line mid-sentence.
+      disp.replace('\n', ' ');
+      disp.replace('\r', ' ');
+
+      // --- SMOOTH PIXEL SCROLLING LOGIC ---
+      int textWidth = disp.length() * 6; // Standard size 1 font is 5x7 + 1px gap
+      int visibleArea = 108; // Width between the checkbox and the scrollbar
+      int xPos = 12;
+
+      if (textWidth > visibleArea) {
+        int scrollRange = textWidth - visibleArea + 15; // 15px extra to scroll completely
+        int cycleTime = scrollRange + 60; // Add time frames for pauses
+        int step = (millis() / 40) % cycleTime; // Speed: move 1 pixel every 40ms
+
+        if (step > 20 && step <= (20 + scrollRange)) { 
+          // Actively scrolling left
+          xPos = 12 - (step - 20); 
+        } else if (step > (20 + scrollRange)) {
+          // Pause at the end of the text
+          xPos = 12 - scrollRange; 
+        }
+      }
+
+      display.setCursor(xPos, y);
+      display.setTextColor(SSD1306_WHITE);
+      display.print(disp);
+    }
+
+    // --- MASKING --- 
+    // Draw black rectangles over the left/right edges to hide text sliding out of bounds
+    display.fillRect(0, 12, 12, 40, SSD1306_BLACK);  // Left mask (checkbox area)
+    display.fillRect(122, 12, 6, 40, SSD1306_BLACK); // Right mask (scrollbar area)
+
+    // --- DRAW UI OVER THE MASKS ---
+    for (int i = startIdx; i < endIdx; i++) {
+      int y = yStart + (i - startIdx) * lineHeight;
+      display.drawRect(2, y + 1, 6, 6, SSD1306_WHITE); // Draw Checkboxes
+    }
+
+    // Draw Vertical Scrollbar
+    if (count > maxLines) {
+      int trackHeight = 35;
+      int thumbHeight = max(6, trackHeight * maxLines / count);
+      int thumbY = 14 + (trackHeight - thumbHeight) * currentScrollOffset / (count - maxLines);
+      display.fillRect(125, thumbY, 3, thumbHeight, SSD1306_WHITE);
+    }
+  }
+
+  // 3. Draw Header (drawn after masking to ensure a clean top bar)
+  display.fillRect(0, 0, OLED_WIDTH, 12, SSD1306_BLACK); 
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
   display.setCursor(2, 2);
@@ -251,61 +324,8 @@ void displaySection(const String& title, const TaskItem items[], int count) {
   }
   display.drawFastHLine(0, 11, OLED_WIDTH, SSD1306_WHITE);
 
-  // 2. Draw Body
-  if (count == 0 || items == nullptr) {
-    display.setCursor(16, 28);
-    display.print(F("No tasks to show"));
-  } else {
-    int yStart = 14;
-    int lineHeight = 9;
-    int maxLines = 4; // We can show 4 tasks: y=14, 23, 32, 41
-
-    if (count > maxLines) {
-      unsigned long now = millis();
-      if (now - lastScroll > 3000) {
-        lastScroll = now;
-        currentScrollOffset++;
-        if (currentScrollOffset > count - maxLines) {
-          currentScrollOffset = 0;
-        }
-      }
-    } else {
-      currentScrollOffset = 0;
-    }
-
-    int startIdx = constrain(currentScrollOffset, 0, max(0, count - maxLines));
-    int endIdx = min(startIdx + maxLines, count);
-
-    for (int i = startIdx; i < endIdx; i++) {
-      int y = yStart + (i - startIdx) * lineHeight;
-      
-      // Draw Checkbox
-      display.drawRect(2, y + 1, 6, 6, SSD1306_WHITE);
-
-      String text = items[i].text;
-      String desc = items[i].description;
-      String disp = text;
-      if (!desc.isEmpty()) {
-        disp += " - " + desc;
-      }
-
-      int maxLen = (count > maxLines) ? 18 : 19;
-      String dispMarquee = getMarqueeText(disp, maxLen, millis());
-
-      display.setCursor(12, y);
-      display.print(dispMarquee);
-    }
-
-    // Draw Scrollbar
-    if (count > maxLines) {
-      int trackHeight = 35; // y from 14 to 49
-      int thumbHeight = max(6, trackHeight * maxLines / count);
-      int thumbY = 14 + (trackHeight - thumbHeight) * currentScrollOffset / (count - maxLines);
-      display.fillRect(125, thumbY, 3, thumbHeight, SSD1306_WHITE);
-    }
-  }
-
-  // 3. Draw Footer
+  // 4. Draw Footer (drawn after masking to ensure a clean bottom bar)
+  display.fillRect(0, 52, OLED_WIDTH, 12, SSD1306_BLACK); 
   display.drawFastHLine(0, 52, OLED_WIDTH, SSD1306_WHITE);
   display.setCursor(2, 55);
   display.print(dashboard.generatedDate);
