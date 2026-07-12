@@ -41,28 +41,23 @@ class _HomeScreenState extends State<HomeScreen> {
           borderRadius: BorderRadius.circular(28),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
-              blurRadius: 24,
-              offset: const Offset(0, 8),
-            ),
-            BoxShadow(
-              color: AppColors.primary.withValues(alpha: isDark ? 0.1 : 0.05),
-              blurRadius: 48,
-              offset: const Offset(0, 0),
+              color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.1),
+              blurRadius: 30,
+              offset: const Offset(0, 10),
             ),
           ],
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(28),
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
             child: Container(
               decoration: BoxDecoration(
                 color: (isDark ? const Color(0xFF161B22) : Colors.white)
-                    .withValues(alpha: isDark ? 0.7 : 0.75),
+                    .withValues(alpha: isDark ? 0.75 : 0.82),
                 border: Border.all(
-                  color: (isDark ? Colors.white : Colors.white)
-                      .withValues(alpha: isDark ? 0.1 : 0.2),
+                  color: (isDark ? Colors.white : Colors.black)
+                      .withValues(alpha: isDark ? 0.08 : 0.06),
                 ),
               ),
               child: Theme(
@@ -72,15 +67,16 @@ class _HomeScreenState extends State<HomeScreen> {
                       .copyWith(
                         elevation: 0,
                         backgroundColor: Colors.transparent,
-                        indicatorColor: AppColors.primary.withValues(alpha: 0.15),
+                        indicatorColor: AppColors.primary.withValues(alpha: 0.14),
                       ),
                 ),
                 child: NavigationBar(
                   selectedIndex: _currentIndex,
                   onDestinationSelected: (index) =>
                       setState(() => _currentIndex = index),
-                  height: 68,
+                  height: 70,
                   labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
+                  animationDuration: const Duration(milliseconds: 400),
                   destinations: const [
                     NavigationDestination(
                       icon: Icon(Icons.task_outlined),

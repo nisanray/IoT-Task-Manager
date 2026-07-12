@@ -8,6 +8,7 @@ class TaskCard extends StatefulWidget {
   final VoidCallback onToggleComplete;
   final VoidCallback onTap;
   final VoidCallback? onToggleEsp32;
+  final VoidCallback? onDelete;
   final int index;
 
   const TaskCard({
@@ -16,6 +17,7 @@ class TaskCard extends StatefulWidget {
     required this.onToggleComplete,
     required this.onTap,
     this.onToggleEsp32,
+    this.onDelete,
     this.index = 0,
   });
 
@@ -54,6 +56,14 @@ class _TaskCardState extends State<TaskCard>
     super.dispose();
   }
 
+  bool get _isOverdue {
+    final now = DateTime.now();
+    return widget.task.scheduledDate.isBefore(DateTime(now.year, now.month, now.day)) &&
+        !widget.task.completed &&
+        !widget.task.deleted &&
+        !widget.task.archived;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -73,7 +83,7 @@ class _TaskCardState extends State<TaskCard>
       TaskPriority.low => [colorScheme.outline, colorScheme.outline],
     };
 
-    return AnimatedBuilder(
+    final card = AnimatedBuilder(
       animation: _animController,
       builder: (context, child) {
         return Opacity(
@@ -101,13 +111,18 @@ class _TaskCardState extends State<TaskCard>
                 borderRadius: BorderRadius.circular(20),
                 color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
                 border: Border.all(
-                  color: (Theme.of(context).brightness == Brightness.dark
-                      ? Colors.white
-                      : Colors.white).withValues(alpha: 0.12),
+                  color: _isOverdue
+                      ? AppColors.error.withValues(alpha: 0.2)
+                      : (Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white
+                          : Colors.black).withValues(alpha: 0.04),
+                  width: _isOverdue ? 1.5 : 1,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.04),
+                    color: _isOverdue
+                        ? AppColors.error.withValues(alpha: 0.06)
+                        : AppColors.primary.withValues(alpha: 0.04),
                     blurRadius: 24,
                     offset: const Offset(0, 8),
                   ),
@@ -152,18 +167,28 @@ class _TaskCardState extends State<TaskCard>
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text(
-                                          widget.task.title,
-                                          style: theme.textTheme.titleSmall?.copyWith(
-                                            decoration: widget.task.completed
-                                                ? TextDecoration.lineThrough
-                                                : null,
-                                            color: widget.task.completed
-                                                ? colorScheme.onSurfaceVariant
-                                                : colorScheme.onSurface,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                widget.task.title,
+                                                style: theme.textTheme.titleSmall?.copyWith(
+                                                  decoration: widget.task.completed
+                                                      ? TextDecoration.lineThrough
+                                                      : null,
+                                                  color: widget.task.completed
+                                                      ? colorScheme.onSurfaceVariant
+                                                      : colorScheme.onSurface,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            if (_isOverdue) ...[
+                                              const SizedBox(width: 6),
+                                              _OverdueBadge(),
+                                            ],
+                                          ],
                                         ),
                                         if (widget.task.description.isNotEmpty) ...[
                                           const SizedBox(height: 4),
@@ -234,6 +259,72 @@ class _TaskCardState extends State<TaskCard>
         ),
       ),
     );
+
+    if (widget.onDelete == null) return card;
+
+    return Dismissible(
+      key: ValueKey(widget.task.id),
+      direction: DismissDirection.endToStart,
+      onDismissed: (_) => widget.onDelete!(),
+      confirmDismiss: (_) async {
+        return await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            icon: Icon(Icons.delete_outline_rounded, color: AppColors.error, size: 32),
+            title: const Text('Delete Task'),
+            content: Text(
+              'Are you sure you want to delete "${widget.task.title}"?',
+              textAlign: TextAlign.center,
+            ),
+            actionsAlignment: MainAxisAlignment.center,
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.error,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text('Delete'),
+              ),
+            ],
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+          ),
+        );
+      },
+      background: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+        decoration: BoxDecoration(
+          color: AppColors.error.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.delete_outline_rounded, color: AppColors.error),
+            const SizedBox(height: 2),
+            Text(
+              'Delete',
+              style: TextStyle(
+                color: AppColors.error,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+      child: card,
+    );
   }
 
   String _typeLabel(TaskType type) {
@@ -251,6 +342,38 @@ class _TaskCardState extends State<TaskCard>
       case TaskType.customDate:
         return 'Custom';
     }
+  }
+}
+
+class _OverdueBadge extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: AppColors.error.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.schedule_rounded, size: 10, color: AppColors.error),
+          const SizedBox(width: 3),
+          Text(
+            'Overdue',
+            style: TextStyle(
+              color: AppColors.error,
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -288,9 +411,7 @@ class _PremiumCheckboxState extends State<_PremiumCheckbox>
     _checkAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOut),
     );
-    if (widget.completed) {
-      _controller.value = 1.0;
-    }
+    if (widget.completed) _controller.value = 1.0;
   }
 
   @override
@@ -325,9 +446,7 @@ class _PremiumCheckboxState extends State<_PremiumCheckbox>
               height: 26,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: widget.completed
-                    ? widget.color
-                    : Colors.transparent,
+                color: widget.completed ? widget.color : Colors.transparent,
                 border: Border.all(
                   color: widget.completed
                       ? widget.color
@@ -385,8 +504,7 @@ class _CheckPainter extends CustomPainter {
 
     final metrics = path.computeMetrics();
     for (final metric in metrics) {
-      final extractPath =
-          metric.extractPath(0.0, metric.length * progress);
+      final extractPath = metric.extractPath(0.0, metric.length * progress);
       canvas.drawPath(extractPath, paint);
     }
   }
@@ -521,12 +639,14 @@ class StaggeredTaskList extends StatelessWidget {
   final List<Task> tasks;
   final void Function(Task) onToggleComplete;
   final void Function(Task) onTap;
+  final void Function(Task)? onDelete;
 
   const StaggeredTaskList({
     super.key,
     required this.tasks,
     required this.onToggleComplete,
     required this.onTap,
+    this.onDelete,
   });
 
   @override
@@ -542,6 +662,7 @@ class StaggeredTaskList extends StatelessWidget {
           index: index,
           onToggleComplete: () => onToggleComplete(task),
           onTap: () => onTap(task),
+          onDelete: onDelete != null ? () => onDelete!(task) : null,
         );
       },
     );

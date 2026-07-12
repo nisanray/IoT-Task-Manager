@@ -44,12 +44,27 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Your Tasks',
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _getGreeting(),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Your Tasks',
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineMedium
+                                ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.5),
+                          ),
+                        ],
                       ),
                       Row(
                         children: [
@@ -68,7 +83,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
                   Text(
                     _getSubtitle(tasksAsync, filter),
                     style: Theme.of(context)
@@ -149,6 +164,9 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
                                 task.copyWith(
                                     showOnEsp32: !task.showOnEsp32),
                               );
+                        },
+                        onDelete: () {
+                          ref.read(taskActionsProvider.notifier).deleteTask(task.id);
                         },
                         onTap: () {
                           Navigator.of(context).push(
@@ -249,6 +267,13 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
         ),
       ),
     );
+  }
+
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
   }
 
   String _getSubtitle(
