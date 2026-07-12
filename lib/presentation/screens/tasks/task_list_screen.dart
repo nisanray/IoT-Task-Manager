@@ -18,6 +18,7 @@ class TaskListScreen extends ConsumerStatefulWidget {
 
 class _TaskListScreenState extends ConsumerState<TaskListScreen> {
   final _scrollController = ScrollController();
+  final Set<String> _dismissedIds = {};
 
   @override
   void dispose() {
@@ -103,7 +104,9 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
             data: (tasks) {
               final filtered = ref
                   .read(taskFilterProvider.notifier)
-                  .applyFilters(tasks);
+                  .applyFilters(tasks)
+                  .where((t) => !_dismissedIds.contains(t.id))
+                  .toList();
 
               if (filtered.isEmpty) {
                 return SliverFillRemaining(
@@ -166,6 +169,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
                               );
                         },
                         onDelete: () {
+                          setState(() => _dismissedIds.add(task.id));
                           ref.read(taskActionsProvider.notifier).deleteTask(task.id);
                         },
                         onTap: () {
